@@ -1,4 +1,5 @@
-# tests (for the time being)
+# things to ignore initially
+.github/
 tests/
 
 # Byte-compiled / optimized / DLL files
