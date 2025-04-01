@@ -1,38 +1,27 @@
-"""Define a simple chatbot agent.
+from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.types import Command, interrupt
+from typing import Literal
+from typing_extensions import TypedDict
 
-This agent returns a predefined response without using an actual LLM.
-"""
+from agent.utils.nodes import call_llm, tools
+from agent.utils.state import State
+from agent.utils.edges import should_continue
 
-from typing import Any, Dict
+# add graph state
+graph_builder = StateGraph(State)
 
-from langchain_core.runnables import RunnableConfig
-from langgraph.graph import StateGraph
+# add nodes
+graph_builder.add_node('call_llm', call_llm)
+graph_builder.add_node('tools', tools)
 
-from agent.configuration import Configuration
-from agent.state import State
+# add edges
+graph_builder.add_edge(START, 'call_llm')
+graph_builder.add_conditional_edges('call_llm', should_continue)
+graph_builder.add_edge('tools', 'call_llm')
 
+# add memory
+memory = MemorySaver()
 
-async def my_node(state: State, config: RunnableConfig) -> Dict[str, Any]:
-    """Each node does work."""
-    configuration = Configuration.from_runnable_config(config)
-    # configuration = Configuration.from_runnable_config(config)
-    # You can use runtime configuration to alter the behavior of your
-    # graph.
-    return {
-        "changeme": "output from my_node. "
-        f"Configured with {configuration.my_configurable_param}"
-    }
-
-
-# Define a new graph
-workflow = StateGraph(State, config_schema=Configuration)
-
-# Add the node to the graph
-workflow.add_node("my_node", my_node)
-
-# Set the entrypoint as `call_model`
-workflow.add_edge("__start__", "my_node")
-
-# Compile the workflow into an executable graph
-graph = workflow.compile()
-graph.name = "New Graph"  # This defines the custom name in LangSmith
+# compile graph
+graph = graph_builder.compile(checkpointer=memory)
