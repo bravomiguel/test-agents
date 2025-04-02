@@ -4,15 +4,17 @@ from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import ToolNode
 from langchain_core.messages import SystemMessage
 from langgraph.types import Command, interrupt
+from datetime import datetime
 
 from agent.utils.state import State
 from agent.utils.tools import web_search
+from agent.prompts.system_prompts import MODEL_SYSTEM_PROMPT
 
 # llm node
 llm = ChatOpenAI(model="gpt-4o-mini")
 llm_with_tools = llm.bind_tools([web_search])
 
-sys_msg = SystemMessage(content="You are a helpful assistant.")
+sys_msg = SystemMessage(content=MODEL_SYSTEM_PROMPT.format(time=datetime.now().isoformat()))
 
 def call_llm(state: State):
     return {'messages': llm_with_tools.invoke([sys_msg] + state['messages'])}
