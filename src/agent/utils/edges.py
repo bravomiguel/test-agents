@@ -11,6 +11,8 @@ def should_continue(state: State):
     return END
 
 def route_after_llm(state: State):
-  if len(state['messages'].tool_calls) == 0:
-    return END
-  return 'human_review_node'
+    messages = state['messages']
+    last_message = messages[-1]
+    if not last_message.tool_calls:
+        return END
+    return 'human_review_node'
