@@ -1,12 +1,7 @@
-"""New LangGraph Agent.
-
-This module defines a custom graph.
-"""
-
 import os
 import getpass
 
-from agent.graph import graph
+from . import web_searcher, joke_generator
 
 def _set_env(var: str):
     if not os.environ.get(var):
@@ -16,4 +11,9 @@ _set_env("ANTHROPIC_API_KEY")
 _set_env("OPENAI_API_KEY")
 _set_env('TAVILY_API_KEY')
 
-__all__ = ["graph"]
+graphs = {
+    "web_searcher": web_searcher,
+    "joke_generator": joke_generator
+}
+
+__all__ = ["graphs"]

@@ -6,9 +6,9 @@ from langchain_core.messages import SystemMessage
 from langgraph.types import Command, interrupt
 from datetime import datetime
 
-from agent.utils.state import State
-from agent.utils.tools import human_assistance, web_search
-from agent.prompts.system_prompts import MODEL_SYSTEM_PROMPT
+from agents.utils.state import State
+from agents.utils.tools import human_assistance, web_search
+from agents.prompts.system_prompts import MODEL_SYSTEM_PROMPT
 
 # llm node
 llm = ChatOpenAI(model="gpt-4o-mini")

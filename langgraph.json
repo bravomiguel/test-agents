@@ -1,7 +1,8 @@
 {
   "dependencies": ["."],
   "graphs": {
-    "agent": "./src/agent/graph.py:graph"
+    "web_searcher": "./src/agents/web_searcher.py:graph",
+    "joke_generator": "./src/agents/joke_generator.py:graph"
   },
   "env": ".env"
 }

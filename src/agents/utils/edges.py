@@ -1,7 +1,7 @@
 from langgraph.graph import END
 from langgraph.types import Command, interrupt
 
-from agent.utils.state import State
+from agents.utils.state import State
 
 
 def should_continue(state: State):

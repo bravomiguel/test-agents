@@ -1,9 +1,9 @@
 [project]
-name = "agent"
+name = "agents"
 version = "0.0.1"
-description = "Starter template for making a new agent LangGraph."
+description = "Example agents"
 authors = [
-    { name = "William Fu-Hinthorn", email = "13333726+hinthornw@users.noreply.github.com" },
+    { name = "Miguel Bravo", email = "miguelbravobalestrini@gmail.com" },
 ]
 readme = "README.md"
 license = { text = "MIT" }
@@ -16,20 +16,21 @@ dependencies = [
     "langchain_community>=0.0.1",
 ]
 
-
 [project.optional-dependencies]
 dev = ["mypy>=1.11.1", "ruff>=0.6.1"]
 
-[build-system]
-requires = ["setuptools>=73.0.0", "wheel"]
-build-backend = "setuptools.build_meta"
+# [build-system]
+# requires = ["setuptools>=73.0.0", "wheel"]
+# build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = ["langgraph.templates.agent", "agent"]
-[tool.setuptools.package-dir]
-"langgraph.templates.agent" = "src/agent"
-"agent" = "src/agent"
+# [tool.setuptools]
+# packages = ["langgraph.templates.agent", "agent"]
+# [tool.setuptools.package-dir]
+# "langgraph.templates.agent" = "src/agent"
+# "agent" = "src/agent"
 
+# [tool.langgraph]
+# entrypoint = "agent"
 
 [tool.setuptools.package-data]
 "*" = ["py.typed"]
