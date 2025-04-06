@@ -6,4 +6,5 @@ from langgraph.graph import MessagesState
 
 @dataclass
 class State(MessagesState):
-    """Simple messages state."""
+    name: str
+    birthday: str

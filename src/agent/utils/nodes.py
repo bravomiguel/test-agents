@@ -7,12 +7,12 @@ from langgraph.types import Command, interrupt
 from datetime import datetime
 
 from agent.utils.state import State
-from agent.utils.tools import web_search
+from agent.utils.tools import human_assistance, web_search
 from agent.prompts.system_prompts import MODEL_SYSTEM_PROMPT
 
 # llm node
 llm = ChatOpenAI(model="gpt-4o-mini")
-llm_with_tools = llm.bind_tools([web_search])
+llm_with_tools = llm.bind_tools([web_search, human_assistance])
 
 sys_msg = SystemMessage(content=MODEL_SYSTEM_PROMPT.format(time=datetime.now().isoformat()))
 
@@ -37,7 +37,7 @@ def human_review_node(state: State):
 
     # Check if we're getting the simplified format
     if "action" in human_review and human_review["action"] == "continue":
-        return Command(goto='tools')
+        return Command(goto='web_search_tool')
 
     review_action = human_review['action']
     review_data = human_review['data']
@@ -58,7 +58,7 @@ def human_review_node(state: State):
             'id': last_message.id,
         }
 
-        return Command(goto='tools', update={'messages': [updated_message]})
+        return Command(goto='web_search_tool', update={'messages': [updated_message]})
 
     if review_action == 'feedback':
         # tool message required after ai message with tool call
@@ -72,5 +72,8 @@ def human_review_node(state: State):
 
         return Command(goto='call_llm', update={'messages': [tool_message]})
 
-# tools node
-tools = ToolNode([web_search])
+# web search tool node
+web_search_tool = ToolNode([web_search])
+
+# human assistance tool node
+human_assistance_tool = ToolNode([human_assistance])
