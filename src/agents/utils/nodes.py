@@ -123,10 +123,10 @@ def decide_joke_route(state: OverallJokeState):
 def reject_joke_request(state: OverallJokeState):
     rejection = AIMessage(content="Sorry, I only do joke generation. Please try again.")
 
-    return {"messages": state["messages"] + [rejection]}
+    return {"messages": [rejection]}
 
 
-# generate joke subjects based on subject
+# generate joke subjects based on topic
 class Subjects(BaseModel):
     subjects: list[str] = Field(
         description="List of between 2 to 5 joke subjects related to the topic."
@@ -149,7 +149,12 @@ def generate_subjects(state: OverallJokeState):
     # reset jokes to empty list
     state["jokes"] = []
 
-    return {"subjects": response.subjects}
+    # give user feedback
+    feedback = AIMessage(
+        content=f"I will generate jokes about {topic.content}, and then tell you the best one."
+    )
+
+    return {"subjects": response.subjects, "messages": [feedback]}
 
 
 # generate joke for each subject
@@ -184,4 +189,6 @@ def select_best_joke(state: OverallJokeState):
 
 # tell joke
 def tell_best_joke(state: OverallJokeState):
-    return {"messages": state["messages"] + [AIMessage(content=state["best_joke"])]}
+    best_joke = AIMessage(content=state["best_joke"])
+
+    return {"messages": [best_joke]}
