@@ -1,7 +1,8 @@
+from typing import Literal
 from langgraph.graph import END
 from langgraph.types import Command, interrupt
 
-from agents.utils.state import State
+from agents.utils.state import OverallJokeState, State
 
 
 def should_continue(state: State):
@@ -23,3 +24,8 @@ def route_after_llm(state: State):
     elif last_message.tool_calls:
         return "human_review_node"
     return END
+
+
+def should_generate_joke(state: OverallJokeState):
+    joke_route = state["joke_route"]
+    return joke_route
