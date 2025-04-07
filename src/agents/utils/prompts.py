@@ -30,7 +30,14 @@ GENERATE_SUBJECTS_PROMPT = (
 GENERATE_JOKE_PROMPT = """Generate a joke about {subject}"""
 
 SELECT_BEST_JOKE_PROMPT = """
-Below are a bunch of jokes, return the index of the best joke
+You're an expert at selecting the funniest jokes.
+
+Below are a bunch of jokes, as well as human feedback (which may be empty).
+
+Factoring in the human feedback (if any) and your own judgment, select the best joke by returning the index of the best joke, starting with 0.
+
+Human feedback:
+{feedback}
 
 Jokes:
 {jokes}

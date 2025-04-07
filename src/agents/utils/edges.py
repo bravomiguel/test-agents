@@ -33,5 +33,15 @@ def should_generate_joke(state: OverallJokeState):
         return "reject_joke_request"
 
 
+# joke generator edges
+
+
 def continue_to_jokes(state: OverallJokeState):
     return [Send("generate_joke", {"subject": s}) for s in state["subjects"]]
+
+
+def human_feedback_loop(state: OverallJokeState):
+    if state["feedback"] == "yes":
+        return "tell_best_joke"
+    else:
+        return "select_best_joke"

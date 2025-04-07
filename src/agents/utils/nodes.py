@@ -147,14 +147,22 @@ def generate_subjects(state: OverallJokeState):
     )
 
     # reset jokes to empty list
-    state["jokes"] = []
+    # set_state("jokes", [])
+
+    # reset human feedback to empty
+    # state["feedback"] = None
 
     # give user feedback
     feedback = AIMessage(
         content=f"I will generate jokes about {topic.content}, and then tell you the best one."
     )
 
-    return {"subjects": response.subjects, "messages": [feedback]}
+    return {
+        "subjects": response.subjects,
+        "messages": [feedback],
+        "feedback": None,
+        "jokes": "__RESET__",
+    }
 
 
 # generate joke for each subject
@@ -178,13 +186,34 @@ class BestJokeId(BaseModel):
 
 
 def select_best_joke(state: OverallJokeState):
-    best_joke_prompt = SELECT_BEST_JOKE_PROMPT.format(jokes=state["jokes"])
+    feedback = state.get("feedback", "")
+    jokes = state.get("jokes", [])
+
+    best_joke_prompt = SELECT_BEST_JOKE_PROMPT.format(feedback=feedback, jokes=jokes)
 
     response = llm.with_structured_output(BestJokeId).invoke(
         [SystemMessage(content=best_joke_prompt)]
     )
 
     return {"best_joke": state["jokes"][response.id]}
+
+
+# human confirm node
+def human_feedback(state: OverallJokeState):
+    human_interrupt = interrupt(
+        {
+            "question": "Is this the funniest joke?",
+            "best_joke": state["best_joke"],
+            "jokes": state["jokes"],
+        }
+    )
+
+    feedback = human_interrupt.get("feedback", "")
+
+    if feedback.lower().startswith("y"):
+        return {"feedback": "yes"}
+    else:
+        return {"feedback": feedback}
 
 
 # tell joke
