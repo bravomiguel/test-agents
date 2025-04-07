@@ -1,4 +1,3 @@
-# model system prompt
 MODEL_SYSTEM_PROMPT = """
 You are a helpful assistant.
 
@@ -9,10 +8,30 @@ JOKE_ROUTER_PROMPT = """
 You are a router that decides if a user is asking for a joke.
 
 Instructions:
-- If the message is clearly a request for a joke, route to "joke".
-- For anything else (e.g., questions, facts, opinions), route to "reject".
+- If the message is clearly a request for a joke, route to "generate_joke".
+- For anything else (e.g., questions, facts, opinions), route to "reject_joke_request".
 
 Return a JSON object with a single key: "route".
 
 Message: "{last_message}"
+"""
+
+EXTRACT_TOPIC_PROMPT = """
+Extract the joke topic from the below message. The topic should be a short phrase or word. 
+
+Message: 
+{message}
+"""
+
+GENERATE_SUBJECTS_PROMPT = (
+    """Generate comma separated list of between 2 to 5 subjects related to: {topic}"""
+)
+
+GENERATE_JOKE_PROMPT = """Generate a joke about {subject}"""
+
+SELECT_BEST_JOKE_PROMPT = """
+Below are a bunch of jokes, return the index of the best joke
+
+Jokes:
+{jokes}
 """

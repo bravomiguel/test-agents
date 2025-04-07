@@ -1,6 +1,5 @@
-from typing import Literal
+from langgraph.constants import Send
 from langgraph.graph import END
-from langgraph.types import Command, interrupt
 
 from agents.utils.state import OverallJokeState, State
 
@@ -28,4 +27,11 @@ def route_after_llm(state: State):
 
 def should_generate_joke(state: OverallJokeState):
     joke_route = state["joke_route"]
-    return joke_route
+    if joke_route == "generate_joke":
+        return "generate_subjects"
+    else:
+        return "reject_joke_request"
+
+
+def continue_to_jokes(state: OverallJokeState):
+    return [Send("generate_joke", {"subject": s}) for s in state["subjects"]]

@@ -7,9 +7,16 @@ from langchain_core.messages import AIMessage, SystemMessage
 from langgraph.types import Command, interrupt
 from datetime import datetime
 
-from agents.utils.state import OverallJokeState, State
+from agents.utils.state import JokeSubjectState, OverallJokeState, State
 from agents.utils.tools import human_assistance, web_search
-from agents.utils.prompts import MODEL_SYSTEM_PROMPT, JOKE_ROUTER_PROMPT
+from agents.utils.prompts import (
+    EXTRACT_TOPIC_PROMPT,
+    GENERATE_JOKE_PROMPT,
+    GENERATE_SUBJECTS_PROMPT,
+    MODEL_SYSTEM_PROMPT,
+    JOKE_ROUTER_PROMPT,
+    SELECT_BEST_JOKE_PROMPT,
+)
 
 llm = ChatOpenAI(model="gpt-4o-mini")
 
@@ -112,15 +119,69 @@ def decide_joke_route(state: OverallJokeState):
     return {"joke_route": result.route}
 
 
-# generate joke node
-def generate_joke(state: OverallJokeState):
-    sys_msg = SystemMessage(content="You are an expert joke generator.")
-
-    return {"messages": llm.invoke([sys_msg] + state["messages"])}
-
-
 # reject joke request node
 def reject_joke_request(state: OverallJokeState):
     rejection = AIMessage(content="Sorry, I only do joke generation. Please try again.")
 
     return {"messages": state["messages"] + [rejection]}
+
+
+# generate joke subjects based on subject
+class Subjects(BaseModel):
+    subjects: list[str] = Field(
+        description="List of between 2 to 5 joke subjects related to the topic."
+    )
+
+
+def generate_subjects(state: OverallJokeState):
+    last_message = state["messages"][-1]
+
+    extract_topic_prompt = EXTRACT_TOPIC_PROMPT.format(message=last_message.content)
+
+    topic = llm.invoke([SystemMessage(content=extract_topic_prompt)])
+
+    generate_subjects_prompt = GENERATE_SUBJECTS_PROMPT.format(topic=topic.content)
+
+    response = llm.with_structured_output(Subjects).invoke(
+        [SystemMessage(content=generate_subjects_prompt)]
+    )
+
+    # reset jokes to empty list
+    state["jokes"] = []
+
+    return {"subjects": response.subjects}
+
+
+# generate joke for each subject
+class Joke(BaseModel):
+    joke: str = Field(description="A joke about the subject.")
+
+
+def generate_joke(state: JokeSubjectState):
+    generate_joke_prompt = GENERATE_JOKE_PROMPT.format(subject=state["subject"])
+
+    response = llm.with_structured_output(Joke).invoke(
+        [SystemMessage(content=generate_joke_prompt)]
+    )
+
+    return {"jokes": [response.joke]}
+
+
+# select best joke
+class BestJokeId(BaseModel):
+    id: int = Field(description="Index of the best joke, starting with 0")
+
+
+def select_best_joke(state: OverallJokeState):
+    best_joke_prompt = SELECT_BEST_JOKE_PROMPT.format(jokes=state["jokes"])
+
+    response = llm.with_structured_output(BestJokeId).invoke(
+        [SystemMessage(content=best_joke_prompt)]
+    )
+
+    return {"best_joke": state["jokes"][response.id]}
+
+
+# tell joke
+def tell_best_joke(state: OverallJokeState):
+    return {"messages": state["messages"] + [AIMessage(content=state["best_joke"])]}
