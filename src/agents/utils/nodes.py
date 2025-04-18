@@ -1,22 +1,43 @@
 from typing import Literal
-from pydantic import BaseModel, Field
+from uuid import uuid4
+from langchain_core.messages.tool import ToolMessage
+from langchain_core.runnables import RunnableConfig
+from langgraph.store.base import BaseStore
+from langgraph.store.memory import InMemoryStore
 from typing_extensions import TypedDict
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import ToolNode
-from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.messages import (
+    AIMessage,
+    HumanMessage,
+    SystemMessage,
+    merge_message_runs,
+)
 from langgraph.types import Command, interrupt
 from datetime import datetime
+from agents.utils.classes import Spy
+from trustcall import create_extractor
+import uuid
 
-from agents.utils.state import JokeSubjectState, OverallJokeState, State
-from agents.utils.tools import human_assistance, web_search
+from agents.utils.state import (
+    JokeSubjectState,
+    OverallJokeState,
+    State,
+    ToDoManagerState,
+)
+from agents.utils.tools import UpdateMemory, extract_tool_info, human_assistance, web_search
 from agents.utils.prompts import (
+    CREATE_INSTRUCTIONS,
     EXTRACT_TOPIC_PROMPT,
     GENERATE_JOKE_PROMPT,
     GENERATE_SUBJECTS_PROMPT,
     MODEL_SYSTEM_PROMPT,
     JOKE_ROUTER_PROMPT,
     SELECT_BEST_JOKE_PROMPT,
+    TODO_MANAGER_SYSTEM_PROMPT,
+    TRUSTCALL_INSTRUCTION,
 )
+from agents.utils.schemas import BestJokeId, Joke, Profile, RouteOutput, Subjects, ToDo
 
 llm = ChatOpenAI(model="gpt-4o-mini")
 
@@ -98,23 +119,15 @@ human_assistance_tool = ToolNode([human_assistance])
 # JOKE GENERATION AGENT NODES
 
 
-# define joke router llm with structured output
-class RouteOutput(BaseModel):
-    route: Literal["generate_joke", "reject_joke_request"] = Field(
-        description="Route to follow based on user intent. Use 'generate_joke' if the user is asking for a joke. Use 'reject_joke_request' for anything else."
-    )
-
-
-joke_router_llm = llm.with_structured_output(RouteOutput)
-
-
 # joke router llm node
 def decide_joke_route(state: OverallJokeState):
     last_message = state["messages"][-1]
 
     router_prompt = JOKE_ROUTER_PROMPT.format(last_message=last_message.content)
 
-    result = joke_router_llm.invoke([SystemMessage(content=router_prompt)])
+    result = llm.with_structured_output(RouteOutput).invoke(
+        [SystemMessage(content=router_prompt)]
+    )
 
     return {"joke_route": result.route}
 
@@ -127,12 +140,6 @@ def reject_joke_request(state: OverallJokeState):
 
 
 # generate joke subjects based on topic
-class Subjects(BaseModel):
-    subjects: list[str] = Field(
-        description="List of between 2 to 5 joke subjects related to the topic."
-    )
-
-
 def generate_subjects(state: OverallJokeState):
     last_message = state["messages"][-1]
 
@@ -145,12 +152,6 @@ def generate_subjects(state: OverallJokeState):
     response = llm.with_structured_output(Subjects).invoke(
         [SystemMessage(content=generate_subjects_prompt)]
     )
-
-    # reset jokes to empty list
-    # set_state("jokes", [])
-
-    # reset human feedback to empty
-    # state["feedback"] = None
 
     # give user feedback
     feedback = AIMessage(
@@ -166,10 +167,6 @@ def generate_subjects(state: OverallJokeState):
 
 
 # generate joke for each subject
-class Joke(BaseModel):
-    joke: str = Field(description="A joke about the subject.")
-
-
 def generate_joke(state: JokeSubjectState):
     generate_joke_prompt = GENERATE_JOKE_PROMPT.format(subject=state["subject"])
 
@@ -181,10 +178,6 @@ def generate_joke(state: JokeSubjectState):
 
 
 # select best joke
-class BestJokeId(BaseModel):
-    id: int = Field(description="Index of the best joke, starting with 0")
-
-
 def select_best_joke(state: OverallJokeState):
     feedback = state.get("feedback", "")
     jokes = state.get("jokes", [])
@@ -221,3 +214,198 @@ def tell_best_joke(state: OverallJokeState):
     best_joke = AIMessage(content=state["best_joke"])
 
     return {"messages": [best_joke]}
+
+
+# TODO MANAGER NODES
+
+
+# todo manager
+def todo_manager(state: ToDoManagerState, config: RunnableConfig, store: BaseStore):
+    """Load memories from the store and use them to personalize the chatbot's response. Either updating memories or responding to the user and ending."""
+
+    # get user id from config
+    user_id = config["configurable"]["user_id"]
+
+    # get user profile from store
+    profile_object = store.search(("profile", user_id))
+    if profile_object:
+        user_profile = profile_object[0].value
+    else:
+        user_profile = None
+
+    # get todo list from store
+    todos_object = store.search(("todo", user_id))
+    todos = "\n".join(f"{todo.value}" for todo in todos_object)
+
+    # get instructions from store
+    instructions_object = store.search(("instructions", user_id))
+    if instructions_object:
+        instructions = instructions_object[0].value
+    else:
+        instructions = None
+
+    # add info to system prompt
+    system_prompt = TODO_MANAGER_SYSTEM_PROMPT.format(
+        user_profile=user_profile, todos=todos, instructions=instructions
+    )
+
+    # call llm (with update memory tool) passing in system prompt + chat history
+    response = llm.bind_tools([UpdateMemory]).invoke(
+        [SystemMessage(content=system_prompt)] + state["messages"]
+    )
+
+    return {"messages": [response]}
+
+
+# update user profile node
+def update_profile(state: ToDoManagerState, config: RunnableConfig, store: BaseStore):
+    """Reflect on the chat history and update user profile."""
+
+    # get user id from config
+    user_id = config["configurable"]["user_id"]
+
+    # get user profile from store
+    profile_object = store.search(("profile", user_id))
+
+    # format user_profile for trust call extractor
+    profile_object = (
+        [(item.key, "Profile", item.value) for item in profile_object]
+        if profile_object
+        else None
+    )
+
+    # prep system prompt and chat history as input (minus last chat message which is a tool call)
+    system_prompt = TRUSTCALL_INSTRUCTION.format(time=datetime.now().isoformat())
+    messages = list(
+        merge_message_runs(
+            messages=[SystemMessage(content=system_prompt)] + state["messages"][:-1]
+        )
+    )
+
+    # create trustcall extractor for updating user profile
+    profile_extractor = create_extractor(llm, tools=[Profile], tool_choice="Profile")
+
+    # invoke trustcall extractor to update user profile based on chat history
+    result = profile_extractor.invoke(
+        {"messages": messages, "existing": profile_object}
+    )
+
+    # update user profile in store (item by item in profile json object)
+    for response, response_metadata in zip(
+        result["responses"], result["response_metadata"]
+    ):
+        store.put(
+            ("profile", user_id),
+            response_metadata.get("json_doc_id", str(uuid.uuid4())),
+            response.model_dump(mode="json"),
+        )
+
+    # Update the tool call made in todo_manager, with profile updated message
+    return {
+        "messages": ToolMessage(
+            content="Profile updated",
+            tool_call_id=state["messages"][-1].tool_calls[0]["id"],
+        )
+    }
+
+    # return {"messages": [{"role": "tool", "content": "updated profile", "tool_call_id":tool_calls[0]['id']}]}
+
+
+# update todo list node
+def update_todos(state: ToDoManagerState, config: RunnableConfig, store: BaseStore):
+    """Reflect on the chat history and update todo list."""
+
+    # get user id from config
+    user_id = config["configurable"]["user_id"]
+
+    # get todos from store
+    todos = store.search(("todo", user_id))
+
+    # format todos for trust call extractor
+    todos = [(item.key, "ToDo", item.value) for item in todos] if todos else None
+
+    # prep system prompt and chat history as input (minus last chat message which is a tool call)
+    system_prompt = TRUSTCALL_INSTRUCTION.format(time=datetime.now().isoformat())
+    messages = list(
+        merge_message_runs(
+            messages=[SystemMessage(content=system_prompt)] + state["messages"][:-1]
+        )
+    )
+
+    # instantiate spy to inspect tool calls made by trustcall
+    spy = Spy()
+
+    # create trustcall extractor for updating todos
+    todo_extractor = create_extractor(
+        llm, tools=[ToDo], tool_choice="ToDo", enable_inserts=True
+    ).with_listeners(on_end=spy)
+
+    # invoke the extractor
+    result = todo_extractor.invoke({"messages": messages, "existing": todos})
+
+    # update todos in store (item by item in todo json object)
+    for response, response_metadata in zip(
+        result["responses"], result["response_metadata"]
+    ):
+        store.put(
+            ("todo", user_id),
+            response_metadata.get("json_doc_id", str(uuid.uuid4())),
+            response.model_dump(mode="json"),
+        )
+
+    # extract changes made by trustcall to todo list
+    todos_changes = extract_tool_info(spy.called_tools, schema_name="ToDo")
+
+    # update the tool call made by todo_manager, with todos changes message
+    return {
+        "messages": ToolMessage(
+            content=todos_changes,
+            tool_call_id=state["messages"][-1].tool_calls[0]["id"],
+        )
+    }
+
+
+# update instructions node
+def update_instructions(
+    state: ToDoManagerState, config: RunnableConfig, store: BaseStore
+):
+    """Reflect on the chat history and update instructions."""
+
+    # get user id from config
+    user_id = config["configurable"]["user_id"]
+
+    # get existing instructions from store
+    instructions = store.get(("instructions", user_id), "user_instructions")
+
+    # prep system prompt
+    system_prompt = CREATE_INSTRUCTIONS.format(
+        current_instructions=instructions.value if instructions else None
+    )
+
+    # call model with system prompt and chat history to get new instructions set
+    response = llm.invoke(
+        [SystemMessage(content=system_prompt)]
+        + state["messages"][:-1]
+        + [
+            HumanMessage(
+                content="Please update the instructions based on the conversation"
+            )
+        ]
+    )
+
+    # update instructions in store
+    store.put(
+        ("instructions", user_id),
+        "user_instructions",
+        {"instructions": response.content},
+    )
+
+    # update tool call made by todo_manager, with instructions updated message
+    return {
+        "messages": [
+            ToolMessage(
+                content="Instructions updated",
+                tool_call_id=state["messages"][-1].tool_calls[0]["id"],
+            )
+        ]
+    }

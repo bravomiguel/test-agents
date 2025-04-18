@@ -7,12 +7,13 @@ from langgraph.graph import MessagesState
 from typing import Annotated, Literal
 import operator
 
-
+# WEB SEARCHER STATE
 @dataclass
 class State(MessagesState):
     name: str
     birthday: str
 
+# JOKE GENERATOR STATE
 
 # Define a custom reducer that supports both adding and resetting
 def list_with_reset_reducer(current_value, new_value):
@@ -37,3 +38,9 @@ class OverallJokeState(MessagesState):
 @dataclass
 class JokeSubjectState(TypedDict):
     subject: str
+
+# TODO MANAGER STATE
+@dataclass
+class ToDoManagerState(MessagesState):
+    """State for the todo manager."""
+

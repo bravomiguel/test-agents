@@ -2,7 +2,8 @@
   "dependencies": ["."],
   "graphs": {
     "web_searcher": "./src/agents/web_searcher.py:graph",
-    "joke_generator": "./src/agents/joke_generator.py:graph"
+    "joke_generator": "./src/agents/joke_generator.py:graph",
+    "todos_manager": "./src/agents/todos_manager.py:graph"
   },
   "env": ".env"
 }

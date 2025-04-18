@@ -1,7 +1,10 @@
+from typing import Literal
+from langchain_core.runnables import RunnableConfig
 from langgraph.constants import Send
 from langgraph.graph import END
+from langgraph.store.base import BaseStore
 
-from agents.utils.state import OverallJokeState, State
+from agents.utils.state import OverallJokeState, State, ToDoManagerState
 
 
 def should_continue(state: State):
@@ -45,3 +48,31 @@ def human_feedback_loop(state: OverallJokeState):
         return "tell_best_joke"
     else:
         return "select_best_joke"
+
+
+# todo manager edges
+
+
+def memory_update_router(
+    state: ToDoManagerState, config: RunnableConfig, store: BaseStore
+) -> Literal["update_profile", "update_instructions", "update_todos", END]:
+    """Route to the relevant memory update based on the model's update memory tool call"""
+
+    # get last message
+    last_message = state["messages"][-1]
+
+    # if it's not a tool call, route to end (defensive check)
+    if not last_message.tool_calls:
+        return END
+
+    # route to relevant update memory node, based on update type arg picked by the model in the tool call
+    update_type = last_message.tool_calls[0].get("args", {}).get("update_type", "")
+
+    if update_type == "user":
+        return "update_profile"
+    elif update_type == "todo":
+        return "update_todos"
+    elif update_type == "instructions":
+        return "update_instructions"
+    else:
+        raise ValueError(f"Invalid update type: {update_type}")
