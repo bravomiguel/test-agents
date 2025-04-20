@@ -40,7 +40,8 @@ builder.add_edge("tell_best_joke", END)
 builder.add_edge("reject_joke_request", END)
 
 # add memory
-memory = MemorySaver()
+# memory = MemorySaver()
 
 # compile graph
-graph = builder.compile(checkpointer=memory)
+# graph = builder.compile(checkpointer=memory)
+graph = builder.compile()

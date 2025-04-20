@@ -3,6 +3,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.store.memory import InMemoryStore
 
+
 from agents.utils.nodes import (
     todo_manager,
     update_instructions,
@@ -39,4 +40,5 @@ across_thread_memory = InMemoryStore()
 within_thread_memory = MemorySaver()
 
 # compile graph
-graph = builder.compile(checkpointer=within_thread_memory, store=across_thread_memory)
+# graph = builder.compile(checkpointer=within_thread_memory, store=across_thread_memory)
+graph = builder.compile()

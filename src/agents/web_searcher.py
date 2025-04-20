@@ -25,4 +25,5 @@ builder.add_edge('human_assistance_tool', 'call_llm')
 memory = MemorySaver()
 
 # compile graph
-graph = builder.compile(checkpointer=memory)
+# graph = builder.compile(checkpointer=memory)
+graph = builder.compile()
