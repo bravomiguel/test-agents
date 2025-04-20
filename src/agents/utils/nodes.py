@@ -25,7 +25,12 @@ from agents.utils.state import (
     State,
     ToDoManagerState,
 )
-from agents.utils.tools import UpdateMemory, extract_tool_info, human_assistance, web_search
+from agents.utils.tools import (
+    UpdateMemory,
+    extract_tool_info,
+    human_assistance,
+    web_search,
+)
 from agents.utils.prompts import (
     CREATE_INSTRUCTIONS,
     EXTRACT_TOPIC_PROMPT,
@@ -235,7 +240,9 @@ def todo_manager(state: ToDoManagerState, config: RunnableConfig, store: BaseSto
 
     # get todo list from store
     todos_object = store.search(("todo", user_id))
-    todos = "\n".join(f"{todo.value}" for todo in todos_object)
+    todos = "\n".join(
+        f"{{'key': {todo.key}, 'value': {todo.value}}}" for todo in todos_object
+    )
 
     # get instructions from store
     instructions_object = store.search(("instructions", user_id))
@@ -318,6 +325,20 @@ def update_todos(state: ToDoManagerState, config: RunnableConfig, store: BaseSto
     # get user id from config
     user_id = config["configurable"]["user_id"]
 
+    # if todo item key is provided in last message tool call args, delete item and return "item deleted"
+    tool_call = state["messages"][-1].tool_calls[0]
+    todo_item_key = tool_call["args"].get("todo_item_key", None)
+    if todo_item_key:
+        store.delete(("todo", user_id), todo_item_key)
+        return {
+            "messages": [
+                ToolMessage(
+                    content=f"Item {todo_item_key} deleted",
+                    tool_call_id=tool_call["id"],
+                )
+            ]
+        }
+
     # get todos from store
     todos = store.search(("todo", user_id))
 
@@ -360,7 +381,7 @@ def update_todos(state: ToDoManagerState, config: RunnableConfig, store: BaseSto
     return {
         "messages": ToolMessage(
             content=todos_changes,
-            tool_call_id=state["messages"][-1].tool_calls[0]["id"],
+            tool_call_id=tool_call["id"],
         )
     }
 

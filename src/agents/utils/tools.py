@@ -1,4 +1,4 @@
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, Literal, Optional, TypedDict
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import InjectedToolCallId, tool
@@ -43,9 +43,10 @@ def human_assistance(
 
 # Update memory tool (just control tool arg, output handled in node return logic)
 class UpdateMemory(TypedDict):
-    """Decision on what memory type to update"""
+    """Decision on what memory type to update. If it's todo, and a delete op, also provide the todo item key."""
 
     update_type: Literal["user", "todo", "instructions"]
+    todo_item_key: str | None
 
 
 # extract trustcall tool call info

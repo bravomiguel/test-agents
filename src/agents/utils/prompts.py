@@ -78,7 +78,7 @@ Here are your instructions for reasoning about the user's messages:
 
 2. Decide whether any of your long-term memory should be updated:
 - If personal information was provided about the user, update the user's profile by calling UpdateMemory tool with type `user`
-- If tasks are mentioned, update the ToDo list by calling UpdateMemory tool with type `todo`
+- If tasks are mentioned, update the ToDo list by calling UpdateMemory tool with type `todo`, and if it's a deletion, also provide `todo_item_key` as key of item to be deleted, otherwise set `todo_item_key` to None.
 - If the user has specified preferences for how to update the ToDo list, update the instructions by calling UpdateMemory tool with type `instructions`
 - IMPORTANT: Do not do multiple calls to UpdateMemory tool at once. Only call UpdateMemory tool once.
 
@@ -96,7 +96,7 @@ Reflect on following interaction.
 
 Use the provided tools to retain any necessary memories about the user. 
 
-Use parallel tool calling to handle updates and insertions simultaneously.
+Just do one tool call at a time.
 
 Current Time: {time}
 """
